@@ -161,6 +161,34 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             summary = json.loads(result.stdout)
             self.assertEqual(summary["observation_count"], 1)
 
+
+    def test_verify_rejects_symlinked_case_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "symlink.jsonl", b'{"content":"symlink fixture"}\n', "jsonl"
+            )
+            output = case / "observations.jsonl"
+            external = root / "external.jsonl"
+            external.write_bytes(output.read_bytes())
+            output.unlink()
+            output.symlink_to(external)
+            with self.assertRaisesRegex(CaseVerificationError, "symlinked case path"):
+                verify_case(case, protocol_path=PROTOCOL)
+
+    def test_verify_rejects_duplicate_case_manifest_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "duplicate.jsonl", b'{"content":"duplicate fixture"}\n', "jsonl"
+            )
+            (case / "case.json").write_text(
+                '{"schema_version":"elite-workstation-case/0.1-draft","schema_version":"elite-workstation-case/0.1-draft"}',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(CaseVerificationError, "duplicate JSON key"):
+                verify_case(case, protocol_path=PROTOCOL)
+
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
