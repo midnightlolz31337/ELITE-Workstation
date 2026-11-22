@@ -120,6 +120,9 @@ def export_case_bundle(case_path: str | Path, bundle_path: str | Path, *, protoc
     if destination.is_symlink() or destination.exists():
         raise CaseBundleError("bundle destination must be new; existing files are never overwritten")
     destination.parent.mkdir(parents=True, exist_ok=True)
+    destination_resolved = destination.resolve()
+    if case == destination_resolved or case in destination_resolved.parents:
+        raise CaseBundleError("bundle destination must be outside the source case directory")
     entries = _case_files(case)
     manifest = {
         "schema_version": BUNDLE_SCHEMA,
@@ -140,15 +143,21 @@ def export_case_bundle(case_path: str | Path, bundle_path: str | Path, *, protoc
             _write_member(archive, "bundle.json", manifest_bytes)
             for entry in entries:
                 info = _zip_info(entry["path"])
+                file_digest = hashlib.sha256()
+                file_size = 0
                 with case.joinpath(*PurePosixPath(entry["path"]).parts).open("rb") as source:
                     with archive.open(info, "w") as target:
                         while True:
                             chunk = source.read(CHUNK_SIZE)
                             if not chunk:
                                 break
+                            file_size += len(chunk)
+                            file_digest.update(chunk)
                             target.write(chunk)
                             if temporary.stat().st_size > MAX_ARCHIVE_BYTES:
                                 raise CaseBundleError("generated archive exceeds maximum archive size")
+                if file_size != entry["size_bytes"] or file_digest.hexdigest() != entry["sha256"]:
+                    raise CaseBundleError(f"case file changed while exporting: {entry['path']}")
         archive_size = temporary.stat().st_size
         if archive_size > MAX_ARCHIVE_BYTES:
             raise CaseBundleError("generated archive exceeds maximum archive size")
