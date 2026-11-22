@@ -89,6 +89,8 @@ def _case_files(root: Path) -> list[dict[str, Any]]:
         relative = path.relative_to(root).as_posix()
         _archive_path(relative)
         collision_key = unicodedata.normalize("NFC", relative).casefold()
+        if collision_key == "bundle.json":
+            raise CaseBundleError("case contains reserved bundle.json path")
         if collision_key in seen_paths:
             raise CaseBundleError(f"case contains colliding portable paths: {relative}")
         seen_paths.add(collision_key)
@@ -128,8 +130,8 @@ def export_case_bundle(case_path: str | Path, bundle_path: str | Path, *, protoc
     if len(manifest_bytes) > MAX_BUNDLE_MANIFEST_BYTES:
         raise CaseBundleError("generated bundle manifest exceeds size limit")
     total = sum(item["size_bytes"] for item in entries)
-    if total > MAX_TOTAL_BYTES:
-        raise CaseBundleError("case exceeds total bundle size limit")
+    if total + len(manifest_bytes) > MAX_TOTAL_BYTES:
+        raise CaseBundleError("case and bundle manifest exceed total uncompressed size limit")
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=f".{destination.name}.", suffix=".tmp", delete=False) as handle:
