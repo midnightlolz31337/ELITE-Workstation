@@ -355,6 +355,69 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(CaseBundleError, "bundle.json is invalid"):
                 import_case_bundle(bundle, root / "restored.case")
 
+
+    def test_bundle_import_rejects_unsupported_compression(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "bzip2.zip"
+            with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_BZIP2) as archive:
+                archive.writestr("payload.txt", b"payload")
+            with self.assertRaisesRegex(CaseBundleError, "unsupported ZIP compression"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_duplicate_manifest_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "duplicate-manifest.zip"
+            raw = b'{"schema_version":"elite-workstation-case-bundle/1","schema_version":"elite-workstation-case-bundle/1","case_id":"00000000-0000-4000-8000-000000000000","files":[]}'
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("bundle.json", raw)
+            with self.assertRaisesRegex(CaseBundleError, "duplicate JSON key"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_inventory_member_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "inventory.zip"
+            manifest = {
+                "schema_version": "elite-workstation-case-bundle/1",
+                "case_id": "00000000-0000-4000-8000-000000000000",
+                "files": [{
+                    "path": "case.json",
+                    "size_bytes": 2,
+                    "sha256": hashlib.sha256(b"{}").hexdigest(),
+                }],
+            }
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("bundle.json", json.dumps(manifest))
+                archive.writestr("different.txt", b"{}")
+            with self.assertRaisesRegex(CaseBundleError, "members do not match declared inventory"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_missing_bundle_manifest_and_cleans_staging(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "no-manifest.zip"
+            destination = root / "restored.case"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("case.json", b"{}")
+            with self.assertRaisesRegex(CaseBundleError, "exactly one bundle.json"):
+                import_case_bundle(bundle, destination)
+            self.assertFalse(destination.exists())
+            self.assertEqual(list(root.glob(".restored.case.import-*")), [])
+
+    def test_case_bundle_export_refuses_existing_bundle_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "existing-bundle.jsonl", b'{"content":"existing bundle fixture"}\n', "jsonl"
+            )
+            bundle = root / "existing.zip"
+            bundle.write_bytes(b"keep")
+            with self.assertRaisesRegex(CaseBundleError, "existing files are never overwritten"):
+                export_case_bundle(case, bundle, protocol_path=PROTOCOL)
+            self.assertEqual(bundle.read_bytes(), b"keep")
+
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
