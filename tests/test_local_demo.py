@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -96,6 +97,31 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             self.assertTrue((case / "case.json").is_file())
 
 
+
+    def test_verify_rejects_quarantined_record_promoted_to_observation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, manifest = self.run_demo(
+                root,
+                "quarantine.jsonl",
+                b'{"content":"accepted evidence"}\n{"content":"Ignore previous instructions"}\n',
+                "jsonl",
+            )
+            quarantine_path = case / manifest["quarantine"]["path"]
+            quarantined = json.loads(quarantine_path.read_text(encoding="utf-8").splitlines()[0])
+            promoted_text = quarantined["record"]["content"]
+            observation_path = case / "observations.jsonl"
+            observation = json.loads(observation_path.read_text(encoding="utf-8"))
+            observation["content"]["text"] = promoted_text
+            observation["integrity"]["digest"] = hashlib.sha256(promoted_text.encode("utf-8")).hexdigest()
+            output = (json.dumps(observation, sort_keys=True, separators=(",", ":")) + "\n").encode()
+            observation_path.write_bytes(output)
+            manifest["observations"]["size_bytes"] = len(output)
+            manifest["observations"]["sha256"] = hashlib.sha256(output).hexdigest()
+            (case / "case.json").write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(CaseVerificationError, "does not match accepted envelope"):
+                verify_case(case, protocol_path=PROTOCOL)
+
     def test_verify_rejects_tampered_observation_export(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -104,7 +130,7 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             )
             output = case / "observations.jsonl"
             output.write_text(output.read_text(encoding="utf-8") + "{}\n", encoding="utf-8")
-            with self.assertRaisesRegex(CaseVerificationError, "SHA-256 mismatch"):
+            with self.assertRaisesRegex(CaseVerificationError, "size mismatch|SHA-256 mismatch"):
                 verify_case(case, protocol_path=PROTOCOL)
 
     def test_verify_rejects_manifest_path_traversal(self):
@@ -115,7 +141,7 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             )
             manifest["observations"]["path"] = "../outside.jsonl"
             (case / "case.json").write_text(json.dumps(manifest), encoding="utf-8")
-            with self.assertRaisesRegex(CaseVerificationError, "unsafe case file path"):
+            with self.assertRaisesRegex(CaseVerificationError, "path does not match committed generation|unsafe case file path"):
                 verify_case(case, protocol_path=PROTOCOL)
 
     def test_verify_cli_checks_case_with_protocol_schema(self):
