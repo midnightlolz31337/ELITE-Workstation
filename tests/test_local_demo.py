@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 from pathlib import Path
 
@@ -419,6 +420,41 @@ class LocalDemoIntegrationTests(unittest.TestCase):
                 export_case_bundle(case, bundle, protocol_path=PROTOCOL)
             self.assertEqual(bundle.read_bytes(), b"keep")
 
+
+
+    def test_ingestion_uses_staged_snapshot_if_external_source_changes_temporarily(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = b'{"content":"original snapshot evidence"}\n'
+            altered = b'{"content":"temporary external mutation"}\n'
+            source = root / "snapshot.jsonl"
+            source.write_bytes(original)
+            case = root / "snapshot.case"
+            real_run = subprocess.run
+
+            def mutate_external_then_ingest(command, **kwargs):
+                source.write_bytes(altered)
+                try:
+                    return real_run(command, **kwargs)
+                finally:
+                    source.write_bytes(original)
+
+            with patch("elite_workstation.demo.subprocess.run", side_effect=mutate_external_then_ingest):
+                run_local_demo(
+                    input_path=source,
+                    case_path=case,
+                    source_id="snapshot-test",
+                    source_uri="https://example.org/snapshot-test",
+                    observed_at="2026-11-22T12:00:00Z",
+                    collected_at="2026-11-22T12:30:00Z",
+                    ingestion_core_path=INGESTION,
+                    protocol_path=PROTOCOL,
+                    source_format="jsonl",
+                    include_source_copy=True,
+                )
+            observation = json.loads((case / "observations.jsonl").read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(observation["content"]["text"], "original snapshot evidence")
+            self.assertEqual((case / "source" / "original.jsonl").read_bytes(), original)
 
     def test_source_copy_is_omitted_by_default(self):
         with tempfile.TemporaryDirectory() as directory:
