@@ -9,9 +9,9 @@ integrations:
     pull_request: https://github.com/midnightlolz31337/ELITE-Ingestion-Core/pull/2
     merge_state: open-unmerged
     license_status: component-branch-license-pending-review
-    integration_evidence: https://github.com/midnightlolz31337/ELITE-Workstation/actions/runs/45059414772
+    integration_evidence: https://github.com/midnightlolz31337/ELITE-Workstation/actions/runs/45059707107
     license_status: component-branch-license-pending-review
-    integration_evidence: https://github.com/midnightlolz31337/ELITE-Workstation/actions/runs/45059414772
+    integration_evidence: https://github.com/midnightlolz31337/ELITE-Workstation/actions/runs/45059707107
   - id: elite-protocol
     repository: https://github.com/midnightlolz31337/ELITE-Protocol
     role: observation-schema-validation-and-ingestion-adapter
