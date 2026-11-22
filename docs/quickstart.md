@@ -65,10 +65,6 @@ python -m elite_workstation.cli verify ./cases/demo-001 --protocol ./ELITE-Proto
 
 The verifier checks case structure, safe paths, symlink boundaries, CURRENT linkage, file hashes and sizes, JSONL counts, accepted-envelope-to-Observation correspondence, and content digests. The case manifest is unsigned; verification proves consistency against the local manifest, not source authenticity or a cryptographic chain of custody.
 
-## Limitations
-
-No network collection, source registry, search UI, case collaboration, signed manifests, automated source authorization, or complete backup/restore is included. Imported content is never executed. Component checkouts are executable code and must be trusted independently. Use synthetic fixtures until the security and licensing gates are resolved.
-
 
 ## 5. Export and restore a portable case
 
@@ -88,3 +84,8 @@ python -m elite_workstation.cli verify ./cases/restored-demo-001 --protocol ./EL
 The importer rejects unsafe or colliding paths, duplicate entries, symlinks and special files, encrypted entries, unsupported compression, oversized members, excessive compression ratios, and file inventory mismatches. Extraction is staged and the restored case is verified before promotion. Existing destination paths are never intentionally overwritten.
 
 The bundle's `bundle.json` is an **unsigned transport inventory**. Its hashes detect accidental corruption and mismatch against the inventory; they do not authenticate the sender, prove source authenticity, or establish chain of custody. Keep sensitive source material encrypted and transfer it through a channel appropriate to its classification. The prototype does not encrypt bundles.
+
+## Limitations
+
+No network collection, source registry, search UI, case collaboration, signed manifests, automated source authorization, or complete backup/restore is included. Imported content is never executed. Component checkouts are executable code and must be trusted independently. Use synthetic fixtures until the security and licensing gates are resolved.
+
