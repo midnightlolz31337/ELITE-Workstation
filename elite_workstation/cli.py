@@ -6,6 +6,7 @@ import json
 import sys
 
 from .demo import WorkstationDemoError, run_local_demo
+from .verify import CaseVerificationError, verify_case
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,9 +26,16 @@ def main(argv: list[str] | None = None) -> int:
         "--operator-asserts-authorized", action="store_true",
         help="operator assertion only; does not authenticate or enforce legal/policy authorization",
     )
+    verify = sub.add_parser("verify", help="verify a completed local case")
+    verify.add_argument("case_dir", help="case directory to verify")
+    verify.add_argument("--protocol", help="trusted local ELITE-Protocol checkout for schema validation")
+
     args = parser.parse_args(argv)
     try:
-        result = run_local_demo(
+        if args.command == "verify":
+            result = verify_case(args.case_dir, protocol_path=args.protocol)
+        else:
+            result = run_local_demo(
             input_path=args.input,
             case_path=args.case_dir,
             source_id=args.source_id,
@@ -37,9 +45,9 @@ def main(argv: list[str] | None = None) -> int:
             ingestion_core_path=args.ingestion_core,
             protocol_path=args.protocol,
             source_format=args.format,
-            operator_asserts_authorized=args.operator_asserts_authorized,
-        )
-    except (OSError, ValueError, WorkstationDemoError) as exc:
+                operator_asserts_authorized=args.operator_asserts_authorized,
+            )
+    except (OSError, ValueError, WorkstationDemoError, CaseVerificationError) as exc:
         parser.exit(2, f"elite-workstation: {exc}\n")
     print(json.dumps(result, sort_keys=True))
     return 0
