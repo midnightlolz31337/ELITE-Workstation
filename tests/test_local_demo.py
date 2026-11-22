@@ -295,6 +295,34 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(json.loads(imported.stdout)["observation_count"], 1)
 
+
+    def test_bundle_import_rejects_member_digest_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "tamper.jsonl", b'{"content":"tamper fixture"}\n', "jsonl"
+            )
+            original = root / "original.zip"
+            tampered = root / "tampered.zip"
+            export_case_bundle(case, original, protocol_path=PROTOCOL)
+            with zipfile.ZipFile(original, "r") as source, zipfile.ZipFile(tampered, "w") as target:
+                for info in source.infolist():
+                    data = source.read(info.filename)
+                    if info.filename == "observations.jsonl":
+                        data = data.replace(b"tamper fixture", b"forged evidence")
+                    target.writestr(info, data)
+            with self.assertRaisesRegex(CaseBundleError, "integrity mismatch"):
+                import_case_bundle(tampered, root / "restored.case", protocol_path=PROTOCOL)
+
+    def test_bundle_import_rejects_excessive_compression_ratio(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "ratio.zip"
+            with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("large.txt", b"A" * 100000)
+            with self.assertRaisesRegex(CaseBundleError, "compression ratio exceeds limit"):
+                import_case_bundle(bundle, root / "restored.case")
+
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
