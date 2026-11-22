@@ -35,4 +35,11 @@ This is not a complete threat model or security certification.
 - Import rejects path traversal, non-canonical and cross-platform-colliding paths, duplicate entries, symlinks/special files, encryption, unsupported compression, excessive compression ratios, oversized files, excessive entry counts, and aggregate-size overflow.
 - Extraction is staged; each member's actual byte count and SHA-256 are checked against the unsigned inventory; the complete case is verified before promotion.
 - The bundle inventory is not signed. A malicious sender can create a self-consistent bundle; authenticity and chain of custody remain out of scope.
-\n## Source snapshot and retention controls\n\n- Ingestion runs against a staged snapshot rather than a mutable external path. The source and snapshot fingerprints must match before ingestion, and the external source is checked again after processing.\n- Original source bytes are not retained by default. `--include-source-copy` explicitly opts into retaining the snapshot in the case.\n- When present, the retained source copy is checked against the recorded original byte count and SHA-256 during case verification.\n- Portable case bundles include retained source files. Bundles are not encrypted; operators must classify source data and control access, transfer, retention, and deletion.\n- A matching digest proves consistency with the recorded fingerprint, not source authenticity or truth.
+
+## Source snapshot and retention controls
+
+- Ingestion runs against a staged snapshot rather than a mutable external path. The source and snapshot fingerprints must match before ingestion, and the external source is checked again after processing.
+- Original source bytes are not retained by default. `--include-source-copy` explicitly opts into retaining the snapshot in the case.
+- When present, the retained source copy is checked against the recorded original byte count and SHA-256 during case verification.
+- Portable case bundles include retained source files. Bundles are not encrypted; operators must classify source data and control access, transfer, retention, and deletion.
+- A matching digest proves consistency with the recorded fingerprint, not source authenticity or truth.
