@@ -16,8 +16,6 @@ git -C ELITE-Protocol checkout 5f8339d926fe0c5cb0b380d324795eebcd2cabac
 
 These are experimental branch commits from open, unmerged pull requests, not stable releases. Review the source before running it.
 
-The integration registry pins branch commits that are currently in open, unmerged pull requests. They are experimental dependencies, not released packages. Review the diffs and trust the code before executing it.
-
 Install Protocol's validation dependency:
 
 ```bash
@@ -59,7 +57,13 @@ The original input is not copied into the case. Its name, size, and whole-file S
 
 ## 4. Verify the result
 
-Inspect `case.json`, compare accepted/quarantine/Observation counts, and independently hash the listed files. The case manifest is unsigned; it is not a cryptographic chain-of-custody record.
+Run the local verifier, optionally using the pinned Protocol checkout for full Observation schema validation:
+
+```bash
+python -m elite_workstation.cli verify ./cases/demo-001 --protocol ./ELITE-Protocol
+```
+
+The verifier checks case structure, safe paths, symlink boundaries, CURRENT linkage, file hashes and sizes, JSONL counts, accepted-envelope-to-Observation correspondence, and content digests. The case manifest is unsigned; verification proves consistency against the local manifest, not source authenticity or a cryptographic chain of custody.
 
 ## Limitations
 
