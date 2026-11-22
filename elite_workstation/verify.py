@@ -175,7 +175,10 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
     current_path = _safe_file(root, ingestion["current_pointer"])
     current_size, current_digest = _fingerprint(current_path)
     del current_size
-    if current_digest != ingestion["current_pointer_sha256"]:
+    pointer_digest = ingestion["current_pointer_sha256"]
+    if not isinstance(pointer_digest, str) or len(pointer_digest) != 64 or any(ch not in "0123456789abcdef" for ch in pointer_digest):
+        raise CaseVerificationError("CURRENT.json SHA-256 value is invalid")
+    if current_digest != pointer_digest:
         raise CaseVerificationError("CURRENT.json SHA-256 mismatch")
 
     current = _load_json(current_path)
@@ -206,8 +209,12 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
         pointer_entry = _require_mapping(current_files[name], f"CURRENT {name}", {"path", "size", "sha256"})
         if pointer_entry["path"] != f"{current['generation_path']}/{name}":
             raise CaseVerificationError(f"CURRENT path mismatch for {name}")
+        pointer_size = _require_count(pointer_entry["size"], f"CURRENT {name} size")
+        pointer_digest = pointer_entry["sha256"]
+        if not isinstance(pointer_digest, str) or len(pointer_digest) != 64 or any(ch not in "0123456789abcdef" for ch in pointer_digest):
+            raise CaseVerificationError(f"CURRENT SHA-256 is invalid: {name}")
         size, digest = _fingerprint(path)
-        if size != pointer_entry["size"] or digest != pointer_entry["sha256"]:
+        if size != pointer_size or digest != pointer_digest:
             raise CaseVerificationError(f"CURRENT file integrity mismatch: {name}")
         expected_lines = accepted_count if name == "accepted.jsonl" else quarantine_count
         if _jsonl_count(path) != expected_lines:
