@@ -124,6 +124,9 @@ def export_case_bundle(case_path: str | Path, bundle_path: str | Path, *, protoc
         "case_id": verified["case_id"],
         "files": entries,
     }
+    manifest_bytes = _json_bytes(manifest)
+    if len(manifest_bytes) > MAX_BUNDLE_MANIFEST_BYTES:
+        raise CaseBundleError("generated bundle manifest exceeds size limit")
     total = sum(item["size_bytes"] for item in entries)
     if total > MAX_TOTAL_BYTES:
         raise CaseBundleError("case exceeds total bundle size limit")
@@ -132,12 +135,18 @@ def export_case_bundle(case_path: str | Path, bundle_path: str | Path, *, protoc
         with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=f".{destination.name}.", suffix=".tmp", delete=False) as handle:
             temporary = Path(handle.name)
         with zipfile.ZipFile(temporary, "w", allowZip64=True) as archive:
-            _write_member(archive, "bundle.json", _json_bytes(manifest))
+            _write_member(archive, "bundle.json", manifest_bytes)
             for entry in entries:
                 info = _zip_info(entry["path"])
                 with case.joinpath(*PurePosixPath(entry["path"]).parts).open("rb") as source:
                     with archive.open(info, "w") as target:
-                        shutil.copyfileobj(source, target, CHUNK_SIZE)
+                        while True:
+                            chunk = source.read(CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            target.write(chunk)
+                            if temporary.stat().st_size > MAX_ARCHIVE_BYTES:
+                                raise CaseBundleError("generated archive exceeds maximum archive size")
         archive_size = temporary.stat().st_size
         if archive_size > MAX_ARCHIVE_BYTES:
             raise CaseBundleError("generated archive exceeds maximum archive size")
