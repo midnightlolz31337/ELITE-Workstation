@@ -11,6 +11,7 @@ import os
 import shutil
 import stat
 import tempfile
+import unicodedata
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -23,6 +24,7 @@ MAX_ENTRIES = 1000
 MAX_FILE_BYTES = 256 * 1024 * 1024
 MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 MAX_PATH_BYTES = 1024
+MAX_BUNDLE_MANIFEST_BYTES = 1024 * 1024
 MAX_COMPRESSION_RATIO = 200
 CHUNK_SIZE = 64 * 1024
 
@@ -62,13 +64,20 @@ def _archive_path(value: Any) -> str:
     path = PurePosixPath(value)
     if path.is_absolute() or any(part in ("", ".", "..") for part in path.parts):
         raise CaseBundleError(f"unsafe bundle path: {value}")
-    if path.as_posix() != value or ":" in path.parts[0]:
+    if path.as_posix() != value or unicodedata.normalize("NFC", value) != value:
         raise CaseBundleError(f"non-canonical bundle path: {value}")
+    for part in path.parts:
+        if any(char in part for char in '<>:"|?*') or part.endswith((" ", ".")):
+            raise CaseBundleError(f"non-portable bundle path: {value}")
+        stem = part.split(".", 1)[0].upper()
+        if stem in {"CON", "PRN", "AUX", "NUL"} or stem in {f"COM{i}" for i in range(1, 10)} or stem in {f"LPT{i}" for i in range(1, 10)}:
+            raise CaseBundleError(f"reserved bundle path: {value}")
     return value
 
 
 def _case_files(root: Path) -> list[dict[str, Any]]:
     entries = []
+    seen_paths = set()
     total = 0
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
@@ -79,6 +88,10 @@ def _case_files(root: Path) -> list[dict[str, Any]]:
             raise CaseBundleError(f"case contains a non-regular file: {path.relative_to(root)}")
         relative = path.relative_to(root).as_posix()
         _archive_path(relative)
+        collision_key = unicodedata.normalize("NFC", relative).casefold()
+        if collision_key in seen_paths:
+            raise CaseBundleError(f"case contains colliding portable paths: {relative}")
+        seen_paths.add(collision_key)
         size, digest = _fingerprint(path)
         if size > MAX_FILE_BYTES:
             raise CaseBundleError(f"case file exceeds bundle limit: {relative}")
@@ -183,12 +196,17 @@ def import_case_bundle(bundle_path: str | Path, destination: str | Path, *, prot
             if not infos or len(infos) > MAX_ENTRIES:
                 raise CaseBundleError("archive entry count is invalid")
             names = []
+            collision_keys = set()
             total = 0
             for info in infos:
                 name = _archive_path(info.filename)
                 if name in names:
                     raise CaseBundleError(f"duplicate archive entry: {name}")
                 names.append(name)
+                collision_key = unicodedata.normalize("NFC", name).casefold()
+                if collision_key in collision_keys:
+                    raise CaseBundleError(f"case-insensitive or Unicode-colliding archive entry: {name}")
+                collision_keys.add(collision_key)
                 if info.is_dir() or info.flag_bits & 0x1:
                     raise CaseBundleError("directory entries and encrypted members are not supported")
                 if info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
@@ -205,11 +223,16 @@ def import_case_bundle(bundle_path: str | Path, destination: str | Path, *, prot
                     raise CaseBundleError(f"archive member compression ratio exceeds limit: {name}")
             if names.count("bundle.json") != 1:
                 raise CaseBundleError("archive must contain exactly one bundle.json")
+            manifest_info = archive.getinfo("bundle.json")
+            if manifest_info.file_size > MAX_BUNDLE_MANIFEST_BYTES:
+                raise CaseBundleError("bundle.json exceeds manifest size limit")
             try:
                 raw_manifest = archive.read("bundle.json")
                 manifest = json.loads(raw_manifest.decode("utf-8"), object_pairs_hook=_unique_object)
             except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 raise CaseBundleError("bundle.json is invalid") from exc
+            if len(raw_manifest) > MAX_BUNDLE_MANIFEST_BYTES:
+                raise CaseBundleError("bundle.json exceeds manifest size limit")
             if not isinstance(manifest, dict) or set(manifest) != {"schema_version", "case_id", "files"}:
                 raise CaseBundleError("bundle manifest structure is invalid")
             if manifest["schema_version"] != BUNDLE_SCHEMA or not isinstance(manifest["case_id"], str):
