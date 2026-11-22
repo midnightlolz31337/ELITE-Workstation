@@ -4,10 +4,17 @@ This repository contains a local CLI demonstrator, not an installer or full work
 
 ## 1. Check out the components
 
-Clone these repositories and check out the exact commits recorded in `integrations/registry.yaml`:
+From the Workstation repository root, clone the component repositories and check out the exact revisions recorded in `integrations/registry.yaml`:
 
-- [ELITE-Ingestion-Core](https://github.com/midnightlolz31337/ELITE-Ingestion-Core)
-- [ELITE-Protocol](https://github.com/midnightlolz31337/ELITE-Protocol)
+```bash
+git clone https://github.com/midnightlolz31337/ELITE-Ingestion-Core
+git -C ELITE-Ingestion-Core checkout e7ff07339a3b5256cca0e983f03ccc579b6cfdeb
+
+git clone https://github.com/midnightlolz31337/ELITE-Protocol
+git -C ELITE-Protocol checkout 5f8339d926fe0c5cb0b380d324795eebcd2cabac
+```
+
+These are experimental branch commits from open, unmerged pull requests, not stable releases. Review the source before running it.
 
 The integration registry pins branch commits that are currently in open, unmerged pull requests. They are experimental dependencies, not released packages. Review the diffs and trust the code before executing it.
 
