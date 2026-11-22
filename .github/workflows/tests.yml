@@ -1,7 +1,6 @@
 name: Workstation local integration
 
 on:
-  push:
   pull_request:
 
 permissions:
