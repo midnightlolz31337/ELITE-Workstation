@@ -25,7 +25,7 @@ The importer validates the complete central directory before extraction and reje
 - absolute, traversal, non-canonical, non-NFC, backslash, reserved-device, alternate-stream, or case/Unicode-colliding paths;
 - duplicate entries, directory entries, symlinks, and special files;
 - encrypted members and compression methods other than STORED or DEFLATED;
-- more than 1,000 entries, archive size over 512 MiB, any member over 256 MiB, aggregate uncompressed content over 1 GiB, paths over 1,024 UTF-8 bytes, or compression ratios over 200:1;
+- more than 1,000 entries, archive size over 512 MiB, any member over 256 MiB, aggregate uncompressed content over 1 GiB, paths over 1,024 UTF-8 bytes, a bundle manifest over 1 MiB, or compression ratios over 200:1;
 - invalid/duplicate JSON keys, mismatched inventories, incorrect expanded sizes, and SHA-256 mismatches.
 
 Files are streamed into a new staging directory. The complete case verifier runs before the staged case is promoted to a new destination. No existing destination is intentionally overwritten.
