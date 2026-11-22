@@ -62,6 +62,7 @@ def run_local_demo(
     protocol_path: str | Path,
     source_format: str | None = None,
     operator_asserts_authorized: bool = False,
+    include_source_copy: bool = False,
 ) -> dict[str, Any]:
     """Run local ingestion, validate accepted observations, and export a case.
 
@@ -102,10 +103,21 @@ def run_local_demo(
     source_before = _file_fingerprint(source)
     staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=destination.parent))
     try:
+        # Ingest an immutable staged snapshot, never the mutable external path.
+        snapshot_path = staging / f".source-snapshot.{fmt}"
+        with source.open("rb") as source_handle, snapshot_path.open("xb") as snapshot_handle:
+            shutil.copyfileobj(source_handle, snapshot_handle, 64 * 1024)
+            snapshot_handle.flush()
+            os.fsync(snapshot_handle.fileno())
+        snapshot_fingerprint = _file_fingerprint(snapshot_path)
+        source_after_snapshot = _file_fingerprint(source)
+        if snapshot_fingerprint != source_before or source_after_snapshot != source_before:
+            raise WorkstationDemoError("source file changed while the input snapshot was being created")
+
         ingestion_output = staging / "ingestion"
         command = [
             sys.executable, "-m", "elite_ingestion.cli", "ingest",
-            str(source), "--source-id", source_id,
+            str(snapshot_path), "--source-id", source_id,
             "--format", fmt, "--output-dir", str(ingestion_output),
         ]
         if operator_asserts_authorized:
@@ -143,6 +155,16 @@ def run_local_demo(
         if source_after != source_before:
             raise WorkstationDemoError("source file changed while the import was running")
 
+        original_path = None
+        if include_source_copy:
+            source_directory = staging / "source"
+            source_directory.mkdir()
+            retained_source = source_directory / f"original.{fmt}"
+            os.replace(snapshot_path, retained_source)
+            original_path = retained_source.relative_to(staging).as_posix()
+        else:
+            snapshot_path.unlink()
+
         current = json.loads(current_pointer.read_text(encoding="utf-8"))
         if exported_count != current["accepted_count"]:
             raise WorkstationDemoError("exported Observation count does not match accepted ingestion count")
@@ -160,6 +182,7 @@ def run_local_demo(
                 "input_name": source.name,
                 "format": fmt,
                 **source_before,
+                "original_path": original_path,
             },
             "timestamps": {
                 "observed_at_default": observed_at,
@@ -186,7 +209,11 @@ def run_local_demo(
                 **_file_fingerprint(quarantine_path),
             },
             "limitations": [
-                "The original input file is not copied into the case; only its name, size, and SHA-256 are recorded.",
+                (
+                    "The original input file is not copied into the case; only its name, size, and SHA-256 are recorded."
+                    if original_path is None
+                    else "An opt-in source copy is retained in the case; it may contain sensitive data and must be protected accordingly."
+                ),
                 "The operator authorization flag is an assertion only, not identity, legal authority, or policy enforcement.",
                 "Digests establish integrity relative to recorded values, not source authenticity or truth.",
                 "The case manifest is unsigned and does not establish chain of custody.",
@@ -202,6 +229,7 @@ def run_local_demo(
             "accepted_count": current["accepted_count"],
             "quarantine_count": current["quarantine_count"],
             "observation_count": exported_count,
+            "source_copy_included": original_path is not None,
         }
     finally:
         if staging is not None:
