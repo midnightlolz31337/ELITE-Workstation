@@ -10,7 +10,7 @@ A local-first integration layer for evidence-led OSINT workflows. No vendor-host
 2. Preserve accepted and quarantined outputs in a committed generation.
 3. Verify the generation pointer, output digests, source-format provenance, and counts.
 4. Convert accepted envelopes into schema-validated ELITE Observations.
-5. Export deterministic Observation JSONL and create a local case manifest.
+5. Export deterministic Observation JSONL and create a local case manifest.\n6. Re-verify the case, file hashes, record counts, and Observation content digests with `elite-workstation verify`.
 
 This is a demonstrator, not a complete OSINT workstation, supported installer, or production release. It has no search UI, source registry, network collection, analyst collaboration, signed chain of custody, or full backup/restore workflow.
 
