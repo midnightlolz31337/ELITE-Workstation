@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from elite_workstation.demo import WorkstationDemoError, run_local_demo
+from elite_workstation.verify import CaseVerificationError, verify_case
 
 
 INGESTION = os.environ.get("ELITE_INGESTION_CORE_PATH")
@@ -32,6 +33,8 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             operator_asserts_authorized=True,
         )
         manifest = json.loads((case / "case.json").read_text(encoding="utf-8"))
+        verified = verify_case(case, protocol_path=PROTOCOL)
+        self.assertEqual(verified["observation_count"], result["observation_count"])
         return result, case, manifest
 
     def test_jsonl_local_case_preserves_accepted_and_quarantine_outputs(self):
@@ -91,6 +94,46 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             self.assertEqual(summary["accepted_count"], 1)
             self.assertEqual(summary["observation_count"], 1)
             self.assertTrue((case / "case.json").is_file())
+
+
+    def test_verify_rejects_tampered_observation_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "verify.jsonl", b'{"content":"verification fixture"}\n', "jsonl"
+            )
+            output = case / "observations.jsonl"
+            output.write_text(output.read_text(encoding="utf-8") + "{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(CaseVerificationError, "SHA-256 mismatch"):
+                verify_case(case, protocol_path=PROTOCOL)
+
+    def test_verify_rejects_manifest_path_traversal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, manifest = self.run_demo(
+                root, "path.jsonl", b'{"content":"path fixture"}\n', "jsonl"
+            )
+            manifest["observations"]["path"] = "../outside.jsonl"
+            (case / "case.json").write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(CaseVerificationError, "unsafe case file path"):
+                verify_case(case, protocol_path=PROTOCOL)
+
+    def test_verify_cli_checks_case_with_protocol_schema(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "verify-cli.jsonl", b'{"content":"CLI verify fixture"}\n', "jsonl"
+            )
+            repository_root = Path(__file__).resolve().parents[1]
+            result = subprocess.run(
+                [
+                    sys.executable, "-m", "elite_workstation.cli", "verify",
+                    str(case), "--protocol", PROTOCOL,
+                ],
+                cwd=repository_root, check=True, capture_output=True, text=True,
+            )
+            summary = json.loads(result.stdout)
+            self.assertEqual(summary["observation_count"], 1)
 
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
