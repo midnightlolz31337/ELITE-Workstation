@@ -30,3 +30,10 @@ The current code is a local demonstrator. Do not call it a complete workstation,
 ## Current licensing status
 
 No license is selected for this repository. Public visibility does not itself grant permission to use, modify, or redistribute the code. Do not assume the component repositories' branch-level Apache-2.0 statements apply to this repository.
+
+- [ ] Formalize and independently review the portable bundle profile, including cross-platform path behavior and atomic destination promotion.
+- [ ] Add cross-platform and filesystem fault-injection tests for interrupted export/import and durability.
+- [ ] Decide whether portable cases should include source originals or only their recorded fingerprints.
+
+- [ ] Define source-original classification, access control, secure deletion, retention, and encryption expectations before enabling source-copy retention in any public production release.
+- [ ] Review the case and bundle formats for backward-compatible optional source-copy metadata and verify that default behavior never retains originals.
