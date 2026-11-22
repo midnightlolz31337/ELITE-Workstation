@@ -208,6 +208,16 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             self.assertEqual(result["case_id"], json.loads((case / "case.json").read_text())["case_id"])
             self.assertEqual(verify_case(restored, protocol_path=PROTOCOL)["observation_count"], 1)
 
+
+    def test_case_bundle_export_rejects_destination_inside_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "self-bundle.jsonl", b'{"content":"self bundle fixture"}\n', "jsonl"
+            )
+            with self.assertRaisesRegex(CaseBundleError, "outside the source case directory"):
+                export_case_bundle(case, case / "bundle.zip", protocol_path=PROTOCOL)
+
     def test_bundle_import_rejects_path_traversal(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
