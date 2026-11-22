@@ -57,7 +57,7 @@ def _fingerprint(path: Path) -> tuple[int, str]:
 
 
 def _archive_path(value: Any) -> str:
-    if not isinstance(value, str) or not value or "\\" in value:
+    if not isinstance(value, str) or not value or "\\" in value or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
         raise CaseBundleError("bundle contains an invalid path")
     if len(value.encode("utf-8")) > MAX_PATH_BYTES:
         raise CaseBundleError("bundle path exceeds length limit")
@@ -250,7 +250,7 @@ def import_case_bundle(bundle_path: str | Path, destination: str | Path, *, prot
             try:
                 raw_manifest = archive.read("bundle.json")
                 manifest = json.loads(raw_manifest.decode("utf-8"), object_pairs_hook=_unique_object)
-            except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            except (KeyError, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
                 raise CaseBundleError("bundle.json is invalid") from exc
             if len(raw_manifest) > MAX_BUNDLE_MANIFEST_BYTES:
                 raise CaseBundleError("bundle.json exceeds manifest size limit")
