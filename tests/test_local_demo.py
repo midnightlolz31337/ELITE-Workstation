@@ -253,6 +253,48 @@ class LocalDemoIntegrationTests(unittest.TestCase):
                 import_case_bundle(bundle, destination)
             self.assertEqual(marker.read_text(), "keep")
 
+
+    def test_bundle_import_rejects_casefold_path_collisions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "collision.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("Case.json", b"one")
+                archive.writestr("case.json", b"two")
+            with self.assertRaisesRegex(CaseBundleError, "colliding archive entry"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_windows_reserved_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "reserved.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("CON/evil.txt", b"no")
+            with self.assertRaisesRegex(CaseBundleError, "reserved bundle path"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_case_bundle_cli_export_and_import(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "bundle-cli.jsonl", b'{"content":"CLI bundle fixture"}\n', "jsonl"
+            )
+            bundle = root / "case.zip"
+            restored = root / "restored.case"
+            repository_root = Path(__file__).resolve().parents[1]
+            exported = subprocess.run(
+                [sys.executable, "-m", "elite_workstation.cli", "export-bundle",
+                 str(case), str(bundle), "--protocol", PROTOCOL],
+                cwd=repository_root, check=True, capture_output=True, text=True,
+            )
+            self.assertEqual(json.loads(exported.stdout)["file_count"], 5)
+            imported = subprocess.run(
+                [sys.executable, "-m", "elite_workstation.cli", "import-bundle",
+                 str(bundle), str(restored), "--protocol", PROTOCOL],
+                cwd=repository_root, check=True, capture_output=True, text=True,
+            )
+            self.assertEqual(json.loads(imported.stdout)["observation_count"], 1)
+
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
