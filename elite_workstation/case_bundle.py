@@ -212,7 +212,8 @@ def import_case_bundle(bundle_path: str | Path, destination: str | Path, *, prot
                 if info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
                     raise CaseBundleError("unsupported ZIP compression method")
                 mode = (info.external_attr >> 16) & 0xFFFF
-                if stat.S_ISLNK(mode) or (mode and not stat.S_ISREG(mode)):
+                file_type = stat.S_IFMT(mode)
+                if file_type and not stat.S_ISREG(mode):
                     raise CaseBundleError("symlink or special-file archive member is forbidden")
                 if info.file_size > MAX_FILE_BYTES:
                     raise CaseBundleError(f"archive member exceeds size limit: {name}")
