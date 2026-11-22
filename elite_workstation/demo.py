@@ -162,7 +162,7 @@ def run_local_demo(
                 **source_before,
             },
             "timestamps": {
-                "observed_at": observed_at,
+                "observed_at_default": observed_at,
                 "collected_at": collected_at,
             },
             "ingestion": {
