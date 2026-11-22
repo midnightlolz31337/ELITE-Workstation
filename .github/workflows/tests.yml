@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: elite-workstation-${{ github.head_ref || github.ref }}
+  group: elite-workstation-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
