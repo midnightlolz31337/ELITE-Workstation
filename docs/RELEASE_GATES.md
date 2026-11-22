@@ -30,4 +30,7 @@ The current code is a local demonstrator. Do not call it a complete workstation,
 ## Current licensing status
 
 No license is selected for this repository. Public visibility does not itself grant permission to use, modify, or redistribute the code. Do not assume the component repositories' branch-level Apache-2.0 statements apply to this repository.
-\n- [ ] Formalize and independently review the portable bundle profile, including cross-platform path behavior and atomic destination promotion.\n- [ ] Add cross-platform and filesystem fault-injection tests for interrupted export/import and durability.\n- [ ] Decide whether portable cases should include source originals or only their recorded fingerprints.\n
+
+- [ ] Formalize and independently review the portable bundle profile, including cross-platform path behavior and atomic destination promotion.
+- [ ] Add cross-platform and filesystem fault-injection tests for interrupted export/import and durability.
+- [ ] Decide whether portable cases should include source originals or only their recorded fingerprints.
