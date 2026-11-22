@@ -6,6 +6,9 @@ on:
 
 permissions:
   contents: read
+concurrency:
+  group: elite-workstation-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
