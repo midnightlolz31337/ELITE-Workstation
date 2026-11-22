@@ -46,7 +46,9 @@ python -m elite_workstation.cli demo ./examples/sample.jsonl \
 
 The authorization flag records only an operator assertion. It does not authenticate the operator or establish legal, contractual, or organizational authority. Without the flag, records lacking authorization are quarantined; they are not exported as Observations.
 
-If a source record contains its own `observed_at` timestamp, that value takes precedence over the command-line fallback. The case manifest labels the command-line value `observed_at_default` to avoid implying that it applied to every record.\n\nThe `--case-dir` must be a new path. Existing cases are never overwritten. The case contains:
+If a source record contains its own `observed_at` timestamp, that value takes precedence over the command-line fallback. The case manifest labels the command-line value `observed_at_default` to avoid implying that it applied to every record.
+
+The `--case-dir` must be a new path. Existing cases are never overwritten. The case contains:
 
 - `case.json`: case metadata and file digests;
 - `ingestion/CURRENT.json`: committed ingestion-generation pointer;
