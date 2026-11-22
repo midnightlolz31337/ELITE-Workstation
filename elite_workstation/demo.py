@@ -178,11 +178,11 @@ def run_local_demo(
                 **_file_fingerprint(observations_path),
             },
             "accepted": {
-                "path": str(accepted_path.relative_to(staging)),
+                "path": accepted_path.relative_to(staging).as_posix(),
                 **_file_fingerprint(accepted_path),
             },
             "quarantine": {
-                "path": str(quarantine_path.relative_to(staging)),
+                "path": quarantine_path.relative_to(staging).as_posix(),
                 **_file_fingerprint(quarantine_path),
             },
             "limitations": [
