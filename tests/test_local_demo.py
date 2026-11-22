@@ -5,10 +5,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from elite_workstation.demo import WorkstationDemoError, run_local_demo
 from elite_workstation.verify import CaseVerificationError, verify_case
+from elite_workstation.case_bundle import CaseBundleError, export_case_bundle, import_case_bundle
 
 
 INGESTION = os.environ.get("ELITE_INGESTION_CORE_PATH")
@@ -191,6 +193,167 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(CaseVerificationError, "duplicate JSON key"):
                 verify_case(case, protocol_path=PROTOCOL)
+
+
+    def test_case_bundle_round_trip_and_deterministic_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "bundle.jsonl", b'{"content":"portable synthetic evidence"}\n', "jsonl"
+            )
+            first = root / "first.zip"
+            second = root / "second.zip"
+            export_case_bundle(case, first, protocol_path=PROTOCOL)
+            export_case_bundle(case, second, protocol_path=PROTOCOL)
+            self.assertEqual(first.read_bytes(), second.read_bytes())
+            restored = root / "restored.case"
+            result = import_case_bundle(first, restored, protocol_path=PROTOCOL)
+            self.assertEqual(result["case_id"], json.loads((case / "case.json").read_text())["case_id"])
+            self.assertEqual(verify_case(restored, protocol_path=PROTOCOL)["observation_count"], 1)
+
+
+    def test_case_bundle_export_rejects_destination_inside_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "self-bundle.jsonl", b'{"content":"self bundle fixture"}\n', "jsonl"
+            )
+            with self.assertRaisesRegex(CaseBundleError, "outside the source case directory"):
+                export_case_bundle(case, case / "bundle.zip", protocol_path=PROTOCOL)
+
+    def test_bundle_import_rejects_path_traversal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "traversal.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("../outside.txt", b"escape")
+            with self.assertRaisesRegex(CaseBundleError, "unsafe bundle path"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_duplicate_archive_entries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "duplicate.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("case.json", b"{}")
+                archive.writestr("case.json", b'{"schema_version":"fake"}')
+            with self.assertRaisesRegex(CaseBundleError, "duplicate archive entry"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_symlink_members(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "symlink.zip"
+            info = zipfile.ZipInfo("link")
+            info.create_system = 3
+            info.external_attr = (0o120777 << 16)
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr(info, "outside")
+            with self.assertRaisesRegex(CaseBundleError, "symlink or special-file"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_never_overwrites_existing_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "traversal.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("../outside.txt", b"escape")
+            destination = root / "existing.case"
+            destination.mkdir()
+            marker = destination / "keep.txt"
+            marker.write_text("keep")
+            with self.assertRaisesRegex(CaseBundleError, "destination must be new"):
+                import_case_bundle(bundle, destination)
+            self.assertEqual(marker.read_text(), "keep")
+
+
+    def test_bundle_import_rejects_casefold_path_collisions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "collision.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("Case.json", b"one")
+                archive.writestr("case.json", b"two")
+            with self.assertRaisesRegex(CaseBundleError, "colliding archive entry"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_windows_reserved_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "reserved.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("CON/evil.txt", b"no")
+            with self.assertRaisesRegex(CaseBundleError, "reserved bundle path"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_case_bundle_cli_export_and_import(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "bundle-cli.jsonl", b'{"content":"CLI bundle fixture"}\n', "jsonl"
+            )
+            bundle = root / "case.zip"
+            restored = root / "restored.case"
+            repository_root = Path(__file__).resolve().parents[1]
+            exported = subprocess.run(
+                [sys.executable, "-m", "elite_workstation.cli", "export-bundle",
+                 str(case), str(bundle), "--protocol", PROTOCOL],
+                cwd=repository_root, check=True, capture_output=True, text=True,
+            )
+            self.assertEqual(json.loads(exported.stdout)["file_count"], 5)
+            imported = subprocess.run(
+                [sys.executable, "-m", "elite_workstation.cli", "import-bundle",
+                 str(bundle), str(restored), "--protocol", PROTOCOL],
+                cwd=repository_root, check=True, capture_output=True, text=True,
+            )
+            self.assertEqual(json.loads(imported.stdout)["observation_count"], 1)
+
+
+    def test_bundle_import_rejects_member_digest_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root, "tamper.jsonl", b'{"content":"tamper fixture"}\n', "jsonl"
+            )
+            original = root / "original.zip"
+            tampered = root / "tampered.zip"
+            export_case_bundle(case, original, protocol_path=PROTOCOL)
+            with zipfile.ZipFile(original, "r") as source, zipfile.ZipFile(tampered, "w") as target:
+                for info in source.infolist():
+                    data = source.read(info.filename)
+                    if info.filename == "observations.jsonl":
+                        data = data.replace(b"tamper fixture", b"forged evidence")
+                    target.writestr(info, data)
+            with self.assertRaisesRegex(CaseBundleError, "integrity mismatch|expanded beyond declared size"):
+                import_case_bundle(tampered, root / "restored.case", protocol_path=PROTOCOL)
+
+    def test_bundle_import_rejects_excessive_compression_ratio(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "ratio.zip"
+            with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("large.txt", b"A" * 100000)
+            with self.assertRaisesRegex(CaseBundleError, "compression ratio exceeds limit"):
+                import_case_bundle(bundle, root / "restored.case")
+
+
+    def test_bundle_import_rejects_control_character_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "control.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("bad" + chr(1) + "name.txt", b"bad")
+            with self.assertRaisesRegex(CaseBundleError, "invalid path"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_deeply_nested_manifest_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "deep.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("bundle.json", b"[" * 10000 + b"0" + b"]" * 10000)
+            with self.assertRaisesRegex(CaseBundleError, "bundle.json is invalid"):
+                import_case_bundle(bundle, root / "restored.case")
 
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:

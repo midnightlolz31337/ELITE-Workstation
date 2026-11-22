@@ -13,7 +13,9 @@ A local-first integration layer for evidence-led OSINT workflows. No vendor-host
 5. Export deterministic Observation JSONL and create a local case manifest.
 6. Re-verify the case, file hashes, record counts, and Observation content digests with `elite-workstation verify`.
 
-This is a demonstrator, not a complete OSINT workstation, supported installer, or production release. It has no search UI, source registry, network collection, analyst collaboration, signed chain of custody, or full backup/restore workflow.
+This is a demonstrator, not a complete OSINT workstation, supported installer, or production release.
+
+**Portable case bundles:** the prototype now supports deterministic ZIP export and bounded, verified import. Bundles include the complete local case tree plus an unsigned transport inventory. Import rejects traversal, duplicate/colliding paths, symlinks and special files, encrypted members, unsupported compression, oversized entries, excessive compression ratios, and digest/size mismatches. This is transport integrity, not signed authenticity or chain of custody. It has no search UI, source registry, network collection, analyst collaboration, signed chain of custody, or full backup/restore workflow.
 
 ## Architecture rules
 
