@@ -1,13 +1,21 @@
-schema_version: "0.1-draft"
+schema_version: "0.2-draft"
 integrations:
   - id: elite-ingestion-core
     repository: https://github.com/midnightlolz31337/ELITE-Ingestion-Core
     role: bounded-ingestion-and-quarantine
-    status: planned-integration
+    status: tested-branch-integration
+    revision: e7ff07339a3b5256cca0e983f03ccc579b6cfdeb
+    branch: hardening/csv-failure-and-atomic-output-2026-11-17
+    pull_request: https://github.com/midnightlolz31337/ELITE-Ingestion-Core/pull/2
+    merge_state: open-unmerged
   - id: elite-protocol
     repository: https://github.com/midnightlolz31337/ELITE-Protocol
-    role: evidence-and-provenance-contracts
-    status: planned-integration
+    role: observation-schema-validation-and-ingestion-adapter
+    status: tested-branch-integration
+    revision: 5f8339d926fe0c5cb0b380d324795eebcd2cabac
+    branch: feature/ingestion-adapter-v1
+    pull_request: https://github.com/midnightlolz31337/ELITE-Protocol/pull/2
+    merge_state: open-unmerged
   - id: elite-agent-commons
     repository: https://github.com/midnightlolz31337/ELITE-Agent-Commons
     role: agent-and-tool-discovery
