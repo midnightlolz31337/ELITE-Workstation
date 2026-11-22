@@ -342,7 +342,7 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             root = Path(directory)
             bundle = root / "control.zip"
             with zipfile.ZipFile(bundle, "w") as archive:
-                archive.writestr("bad\\x01name.txt", b"bad")
+                archive.writestr("bad" + chr(1) + "name.txt", b"bad")
             with self.assertRaisesRegex(CaseBundleError, "invalid path"):
                 import_case_bundle(bundle, root / "restored.case")
 
