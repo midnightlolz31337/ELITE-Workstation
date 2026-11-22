@@ -142,10 +142,11 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
         raise CaseVerificationError("case_id is not canonical")
     _validate_timestamp(manifest["created_at"], "created_at")
 
-    source = _require_mapping(
-        manifest["source"], "source",
-        {"source_id", "source_uri", "input_name", "format", "size_bytes", "sha256"},
-    )
+    source_value = manifest["source"]
+    source_keys = {"source_id", "source_uri", "input_name", "format", "size_bytes", "sha256"}
+    if not isinstance(source_value, dict) or set(source_value) not in (source_keys, source_keys | {"original_path"}):
+        raise CaseVerificationError("source has an invalid structure")
+    source = source_value
     if not all(isinstance(source[k], str) and source[k] for k in ("source_id", "source_uri", "input_name")):
         raise CaseVerificationError("source identity fields are invalid")
     if source["format"] not in ("jsonl", "csv"):
@@ -153,6 +154,18 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
     _require_count(source["size_bytes"], "source size")
     if not isinstance(source["sha256"], str) or len(source["sha256"]) != 64 or any(c not in "0123456789abcdef" for c in source["sha256"]):
         raise CaseVerificationError("source SHA-256 is invalid")
+    source_copy_path = None
+    original_path = source.get("original_path")
+    if original_path is not None:
+        expected_original_path = f"source/original.{source['format']}"
+        if original_path != expected_original_path:
+            raise CaseVerificationError("retained source copy path is invalid")
+        source_copy_path = _safe_file(root, original_path)
+        original_size, original_digest = _fingerprint(source_copy_path)
+        if original_size != source["size_bytes"]:
+            raise CaseVerificationError("retained source copy size mismatch")
+        if original_digest != source["sha256"]:
+            raise CaseVerificationError("retained source copy SHA-256 mismatch")
 
     timestamps = _require_mapping(manifest["timestamps"], "timestamps", {"observed_at_default", "collected_at"})
     _validate_timestamp(timestamps["observed_at_default"], "observed_at_default")
@@ -324,6 +337,9 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
         "verified_files": [
             "case.json", "ingestion/CURRENT.json",
             accepted_entry["path"], quarantine_entry["path"], observations_entry["path"],
+            *([original_path] if source_copy_path is not None else []),
         ],
+        "source_copy_included": source_copy_path is not None,
+        "source_copy_path": original_path,
         "integrity_basis": "unsigned case manifest and local SHA-256 consistency checks; not source authentication",
     }
