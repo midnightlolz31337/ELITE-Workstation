@@ -5,6 +5,7 @@ import argparse
 import json
 from .demo import WorkstationDemoError, run_local_demo
 from .verify import CaseVerificationError, verify_case
+from .case_bundle import CaseBundleError, export_case_bundle, import_case_bundle
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,11 +28,23 @@ def main(argv: list[str] | None = None) -> int:
     verify = sub.add_parser("verify", help="verify a completed local case")
     verify.add_argument("case_dir", help="case directory to verify")
     verify.add_argument("--protocol", help="trusted local ELITE-Protocol checkout for schema validation")
+    export_bundle = sub.add_parser("export-bundle", help="export a verified case as a deterministic ZIP bundle")
+    export_bundle.add_argument("case_dir")
+    export_bundle.add_argument("bundle_path")
+    export_bundle.add_argument("--protocol", help="trusted local ELITE-Protocol checkout for schema validation")
+    import_bundle = sub.add_parser("import-bundle", help="safely import and verify a case ZIP bundle")
+    import_bundle.add_argument("bundle_path")
+    import_bundle.add_argument("case_dir")
+    import_bundle.add_argument("--protocol", help="trusted local ELITE-Protocol checkout for schema validation")
 
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
             result = verify_case(args.case_dir, protocol_path=args.protocol)
+        elif args.command == "export-bundle":
+            result = export_case_bundle(args.case_dir, args.bundle_path, protocol_path=args.protocol)
+        elif args.command == "import-bundle":
+            result = import_case_bundle(args.bundle_path, args.case_dir, protocol_path=args.protocol)
         else:
             result = run_local_demo(
                 input_path=args.input,
@@ -45,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
                 source_format=args.format,
                 operator_asserts_authorized=args.operator_asserts_authorized,
             )
-    except (OSError, ValueError, WorkstationDemoError, CaseVerificationError) as exc:
+    except (OSError, ValueError, WorkstationDemoError, CaseVerificationError, CaseBundleError) as exc:
         parser.exit(2, f"elite-workstation: {exc}\n")
     print(json.dumps(result, sort_keys=True))
     return 0
