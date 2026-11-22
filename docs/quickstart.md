@@ -109,4 +109,4 @@ python -m elite_workstation.cli demo ./evidence.jsonl \
   --include-source-copy
 ```
 
-The exact snapshot is retained at `source/original.jsonl` (or `original.csv`) and checked against the recorded source fingerprint. Portable case bundles include it. This is an explicit sensitive-data retention choice: bundles are not encrypted. Confirm that you are authorized to retain and transfer the source, and protect or delete the resulting case and bundle under your data-handling policy.
+The exact snapshot (up to 256 MiB) is retained at `source/original.jsonl` (or `original.csv`) and checked against the recorded source fingerprint. Portable case bundles include it. This is an explicit sensitive-data retention choice: bundles are not encrypted. Confirm that you are authorized to retain and transfer the source, and protect or delete the resulting case and bundle under your data-handling policy.
