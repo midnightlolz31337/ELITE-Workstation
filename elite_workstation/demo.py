@@ -228,6 +228,11 @@ def run_local_demo(
             ],
         }
         _write_json(staging / "case.json", case_manifest)
+        from .verify import CaseVerificationError, verify_case
+        try:
+            verify_case(staging, protocol_path=protocol_root)
+        except CaseVerificationError as exc:
+            raise WorkstationDemoError(f"generated case failed verification: {exc}") from exc
         os.rename(staging, destination)
         staging = None
         return {
