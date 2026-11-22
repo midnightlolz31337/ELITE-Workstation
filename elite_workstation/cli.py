@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
-
 from .demo import WorkstationDemoError, run_local_demo
 from .verify import CaseVerificationError, verify_case
 
@@ -36,15 +34,15 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_case(args.case_dir, protocol_path=args.protocol)
         else:
             result = run_local_demo(
-            input_path=args.input,
-            case_path=args.case_dir,
-            source_id=args.source_id,
-            source_uri=args.source_uri,
-            observed_at=args.observed_at,
-            collected_at=args.collected_at,
-            ingestion_core_path=args.ingestion_core,
-            protocol_path=args.protocol,
-            source_format=args.format,
+                input_path=args.input,
+                case_path=args.case_dir,
+                source_id=args.source_id,
+                source_uri=args.source_uri,
+                observed_at=args.observed_at,
+                collected_at=args.collected_at,
+                ingestion_core_path=args.ingestion_core,
+                protocol_path=args.protocol,
+                source_format=args.format,
                 operator_asserts_authorized=args.operator_asserts_authorized,
             )
     except (OSError, ValueError, WorkstationDemoError, CaseVerificationError) as exc:
