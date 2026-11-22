@@ -1,0 +1,14 @@
+schema_version: "0.1-draft"
+integrations:
+  - id: elite-ingestion-core
+    repository: https://github.com/midnightlolz31337/ELITE-Ingestion-Core
+    role: bounded-ingestion-and-quarantine
+    status: planned-integration
+  - id: elite-protocol
+    repository: https://github.com/midnightlolz31337/ELITE-Protocol
+    role: evidence-and-provenance-contracts
+    status: planned-integration
+  - id: elite-agent-commons
+    repository: https://github.com/midnightlolz31337/ELITE-Agent-Commons
+    role: agent-and-tool-discovery
+    status: planned-integration
