@@ -1,7 +1,64 @@
-# Quickstart
+# Quickstart — local demonstrator
 
-This repository is currently an architecture bootstrap. There is no integrated installer or supported workstation command yet.
+This repository contains a local CLI demonstrator, not an installer or full workstation release. The demonstrator runs without network access after its component checkouts and Python dependencies are present.
 
-The first demonstrator should run locally without a network connection, create a case workspace, import a synthetic evidence bundle into quarantine, validate records against a pinned schema, display provenance and uncertainty, export the case, verify the bundle, and restore it into a clean workspace.
+## 1. Check out the components
 
-A release must document supported platforms, installation, upgrades, data locations, backup, uninstall, and security limitations.
+From the Workstation repository root, clone the component repositories and check out the exact revisions recorded in `integrations/registry.yaml`:
+
+```bash
+git clone https://github.com/midnightlolz31337/ELITE-Ingestion-Core
+git -C ELITE-Ingestion-Core checkout e7ff07339a3b5256cca0e983f03ccc579b6cfdeb
+
+git clone https://github.com/midnightlolz31337/ELITE-Protocol
+git -C ELITE-Protocol checkout 5f8339d926fe0c5cb0b380d324795eebcd2cabac
+```
+
+These are experimental branch commits from open, unmerged pull requests, not stable releases. Review the source before running it.
+
+The integration registry pins branch commits that are currently in open, unmerged pull requests. They are experimental dependencies, not released packages. Review the diffs and trust the code before executing it.
+
+Install Protocol's validation dependency:
+
+```bash
+python -m pip install --requirement ELITE-Protocol/requirements.txt
+```
+
+## 2. Prepare a local input
+
+The demonstrator accepts JSONL or CSV. Use synthetic data first. Do not point it at sensitive or regulated material until you have reviewed the data-handling and threat-model limitations.
+
+## 3. Run the local case flow
+
+From the Workstation repository root:
+
+```bash
+python -m elite_workstation.cli demo ./examples/sample.jsonl \
+  --case-dir ./cases/demo-001 \
+  --source-id synthetic-demo \
+  --source-uri https://example.org/synthetic-demo \
+  --observed-at 2026-11-22T12:00:00Z \
+  --collected-at 2026-11-22T12:30:00Z \
+  --ingestion-core ./ELITE-Ingestion-Core \
+  --protocol ./ELITE-Protocol \
+  --operator-asserts-authorized
+```
+
+The authorization flag records only an operator assertion. It does not authenticate the operator or establish legal, contractual, or organizational authority. Without the flag, records lacking authorization are quarantined; they are not exported as Observations.
+
+If a source record contains its own `observed_at` timestamp, that value takes precedence over the command-line fallback. The case manifest labels the command-line value `observed_at_default` to avoid implying that it applied to every record.\n\nThe `--case-dir` must be a new path. Existing cases are never overwritten. The case contains:
+
+- `case.json`: case metadata and file digests;
+- `ingestion/CURRENT.json`: committed ingestion-generation pointer;
+- the referenced accepted and quarantine JSONL files;
+- `observations.jsonl`: validated accepted Observations.
+
+The original input is not copied into the case. Its name, size, and whole-file SHA-256 are recorded; keep the original separately if retention is required.
+
+## 4. Verify the result
+
+Inspect `case.json`, compare accepted/quarantine/Observation counts, and independently hash the listed files. The case manifest is unsigned; it is not a cryptographic chain-of-custody record.
+
+## Limitations
+
+No network collection, source registry, search UI, case collaboration, signed manifests, automated source authorization, or complete backup/restore is included. Imported content is never executed. Component checkouts are executable code and must be trusted independently. Use synthetic fixtures until the security and licensing gates are resolved.

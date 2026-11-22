@@ -1,9 +1,28 @@
 # Threat model (initial)
 
-Assets: case evidence, source metadata, analyst notes, credentials held by external tools, local indexes, approval records, exported bundles.
+## Assets
 
-Threats: malicious files and archives; prompt injection in retrieved content; poisoned metadata; compromised plugins/dependencies; unauthorized side effects; accidental public disclosure; local data loss; stale trust roots.
+Case evidence, source metadata, analyst notes, credentials held by external tools, local indexes, approval records, exported bundles, and component source checkouts.
 
-Controls to design and test: quarantine and resource limits; never treat content as executable instructions; separate untrusted evidence from policy and operator decisions; least-privilege adapters and explicit side-effect approval; secret scanning and allowlisted exports; backup/restore tests; versioned schemas and dependency provenance.
+## Threats
+
+Malicious files and archives; prompt injection in retrieved content; poisoned metadata; compromised plugins/dependencies; unauthorized side effects; accidental public disclosure; local data loss; stale trust roots; tampered generation pointers; compromised component checkouts; and source files changing during ingestion.
+
+## Current demonstrator controls
+
+- Ingestion Core enforces bounded input handling and quarantines malformed or policy-blocked records.
+- Workstation fingerprints the source before and after ingestion and aborts if it changes.
+- Protocol adapter verifies CURRENT metadata, canonical generation paths, symlink boundaries, file sizes, SHA-256 digests, newline termination, and manifest counts.
+- Source format is carried in each ingestion envelope; callers cannot relabel CSV normalized-row digests as JSONL line-byte digests.
+- Only accepted envelopes are converted to Observations.
+- Observation content digests are recomputed over exact UTF-8 text bytes.
+- Case output is staged and promoted only after ingestion, validation, export, and manifest creation succeed.
+- Existing case directories are never overwritten.
+- Component code paths are explicit local inputs; component source code is trusted code and must be reviewed before execution/import.
+- Imported evidence is treated as data and is never executed.
+
+## Known limitations
+
+The operator authorization flag is only an assertion. There is no identity provider, source registry, legal authorization engine, network collection, signed manifest, authenticated chain of custody, or cryptographic case signature. The original input is not copied into the case. Parent-directory crash durability is platform/filesystem dependent. A case manifest and hashes do not establish source authenticity or truth.
 
 This is not a complete threat model or security certification.
