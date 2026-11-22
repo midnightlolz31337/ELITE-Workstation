@@ -25,6 +25,10 @@ def main(argv: list[str] | None = None) -> int:
         "--operator-asserts-authorized", action="store_true",
         help="operator assertion only; does not authenticate or enforce legal/policy authorization",
     )
+    demo.add_argument(
+        "--include-source-copy", action="store_true",
+        help="retain an exact copy of the input in the case; may include sensitive data",
+    )
     verify = sub.add_parser("verify", help="verify a completed local case")
     verify.add_argument("case_dir", help="case directory to verify")
     verify.add_argument("--protocol", help="trusted local ELITE-Protocol checkout for schema validation")
@@ -57,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
                 protocol_path=args.protocol,
                 source_format=args.format,
                 operator_asserts_authorized=args.operator_asserts_authorized,
+                include_source_copy=args.include_source_copy,
             )
     except (OSError, ValueError, WorkstationDemoError, CaseVerificationError, CaseBundleError) as exc:
         parser.exit(2, f"elite-workstation: {exc}\n")
