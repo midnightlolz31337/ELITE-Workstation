@@ -333,6 +333,25 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(CaseBundleError, "compression ratio exceeds limit"):
                 import_case_bundle(bundle, root / "restored.case")
 
+
+    def test_bundle_import_rejects_control_character_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "control.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("bad\\x01name.txt", b"bad")
+            with self.assertRaisesRegex(CaseBundleError, "invalid path"):
+                import_case_bundle(bundle, root / "restored.case")
+
+    def test_bundle_import_rejects_deeply_nested_manifest_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "deep.zip"
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("bundle.json", b"[" * 1200 + b"0" + b"]" * 1200)
+            with self.assertRaisesRegex(CaseBundleError, "bundle.json is invalid"):
+                import_case_bundle(bundle, root / "restored.case")
+
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
