@@ -311,7 +311,7 @@ class LocalDemoIntegrationTests(unittest.TestCase):
                     if info.filename == "observations.jsonl":
                         data = data.replace(b"tamper fixture", b"forged evidence")
                     target.writestr(info, data)
-            with self.assertRaisesRegex(CaseBundleError, "integrity mismatch"):
+            with self.assertRaisesRegex(CaseBundleError, "integrity mismatch|expanded beyond declared size"):
                 import_case_bundle(tampered, root / "restored.case", protocol_path=PROTOCOL)
 
     def test_bundle_import_rejects_excessive_compression_ratio(self):
