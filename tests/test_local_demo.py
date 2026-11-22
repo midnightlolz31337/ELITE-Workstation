@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -61,6 +63,34 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             observation = json.loads((case / "observations.jsonl").read_text(encoding="utf-8"))
             self.assertEqual(observation["content"]["text"], "ordinary CSV evidence")
             self.assertEqual(observation["ingestion"]["record_digest"]["scope"], "ingestion.csv.normalized_row.utf8")
+
+
+    def test_cli_demo_runs_the_local_vertical_slice(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "cli.jsonl"
+            source.write_text('{"content":"CLI synthetic evidence"}\n', encoding="utf-8")
+            case = root / "cli.case"
+            repository_root = Path(__file__).resolve().parents[1]
+            command = [
+                sys.executable, "-m", "elite_workstation.cli", "demo", str(source),
+                "--case-dir", str(case),
+                "--source-id", "cli-test-source",
+                "--source-uri", "https://example.org/cli-test",
+                "--observed-at", "2026-11-22T12:00:00Z",
+                "--collected-at", "2026-11-22T12:30:00Z",
+                "--ingestion-core", INGESTION,
+                "--protocol", PROTOCOL,
+                "--operator-asserts-authorized",
+            ]
+            result = subprocess.run(
+                command, cwd=repository_root, check=True,
+                capture_output=True, text=True,
+            )
+            summary = json.loads(result.stdout)
+            self.assertEqual(summary["accepted_count"], 1)
+            self.assertEqual(summary["observation_count"], 1)
+            self.assertTrue((case / "case.json").is_file())
 
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
