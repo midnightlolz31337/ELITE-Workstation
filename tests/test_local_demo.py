@@ -19,7 +19,7 @@ PROTOCOL = os.environ.get("ELITE_PROTOCOL_PATH")
 
 @unittest.skipUnless(INGESTION and PROTOCOL, "requires pinned Ingestion Core and Protocol checkouts")
 class LocalDemoIntegrationTests(unittest.TestCase):
-    def run_demo(self, root, filename, data, fmt):
+    def run_demo(self, root, filename, data, fmt, include_source_copy=False):
         source = root / filename
         source.write_bytes(data)
         case = root / f"{filename}.case"
@@ -34,6 +34,7 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             protocol_path=PROTOCOL,
             source_format=fmt,
             operator_asserts_authorized=True,
+            include_source_copy=include_source_copy,
         )
         manifest = json.loads((case / "case.json").read_text(encoding="utf-8"))
         verified = verify_case(case, protocol_path=PROTOCOL)
@@ -417,6 +418,86 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(CaseBundleError, "existing files are never overwritten"):
                 export_case_bundle(case, bundle, protocol_path=PROTOCOL)
             self.assertEqual(bundle.read_bytes(), b"keep")
+
+
+    def test_source_copy_is_omitted_by_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, manifest = self.run_demo(
+                root, "no-copy.jsonl", b'{"content":"no source retention"}\n', "jsonl"
+            )
+            self.assertIsNone(manifest["source"]["original_path"])
+            self.assertFalse((case / "source").exists())
+            verified = verify_case(case, protocol_path=PROTOCOL)
+            self.assertFalse(verified["source_copy_included"])
+
+    def test_opt_in_source_copy_is_retained_and_verified(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = b'{"content":"retained synthetic source"}\n'
+            _, case, manifest = self.run_demo(
+                root, "retained.jsonl", data, "jsonl", include_source_copy=True
+            )
+            self.assertEqual(manifest["source"]["original_path"], "source/original.jsonl")
+            self.assertEqual((case / "source" / "original.jsonl").read_bytes(), data)
+            verified = verify_case(case, protocol_path=PROTOCOL)
+            self.assertTrue(verified["source_copy_included"])
+            self.assertIn("source/original.jsonl", verified["verified_files"])
+
+    def test_verifier_rejects_tampered_retained_source_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, case, _ = self.run_demo(
+                root,
+                "tampered-source.jsonl",
+                b'{"content":"original source bytes"}\n',
+                "jsonl",
+                include_source_copy=True,
+            )
+            retained = case / "source" / "original.jsonl"
+            retained.write_bytes(b'{"content":"altered source bytes"}\n')
+            with self.assertRaisesRegex(CaseVerificationError, "retained source copy SHA-256 mismatch"):
+                verify_case(case, protocol_path=PROTOCOL)
+
+    def test_case_bundle_round_trip_preserves_opt_in_source_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = b'{"content":"bundle retained source"}\n'
+            _, case, _ = self.run_demo(
+                root, "bundle-source.jsonl", data, "jsonl", include_source_copy=True
+            )
+            bundle = root / "source-case.zip"
+            restored = root / "source-restored.case"
+            export_case_bundle(case, bundle, protocol_path=PROTOCOL)
+            import_case_bundle(bundle, restored, protocol_path=PROTOCOL)
+            self.assertEqual((restored / "source" / "original.jsonl").read_bytes(), data)
+            self.assertTrue(verify_case(restored, protocol_path=PROTOCOL)["source_copy_included"])
+
+    def test_cli_include_source_copy_flag(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "cli-source.jsonl"
+            data = b'{"content":"CLI retained source"}\n'
+            source.write_bytes(data)
+            case = root / "cli-source.case"
+            repository_root = Path(__file__).resolve().parents[1]
+            result = subprocess.run(
+                [
+                    sys.executable, "-m", "elite_workstation.cli", "demo", str(source),
+                    "--case-dir", str(case),
+                    "--source-id", "cli-source",
+                    "--source-uri", "https://example.org/cli-source",
+                    "--observed-at", "2026-11-22T12:00:00Z",
+                    "--collected-at", "2026-11-22T12:30:00Z",
+                    "--ingestion-core", INGESTION,
+                    "--protocol", PROTOCOL,
+                    "--format", "jsonl",
+                    "--include-source-copy",
+                ],
+                cwd=repository_root, check=True, capture_output=True, text=True,
+            )
+            self.assertTrue(json.loads(result.stdout)["source_copy_included"])
+            self.assertEqual((case / "source" / "original.jsonl").read_bytes(), data)
 
     def test_existing_case_directory_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
