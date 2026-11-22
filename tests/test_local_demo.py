@@ -174,7 +174,10 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             external = root / "external.jsonl"
             external.write_bytes(output.read_bytes())
             output.unlink()
-            output.symlink_to(external)
+            try:
+                output.symlink_to(external)
+            except OSError:
+                self.skipTest("the current Windows runner does not grant symlink creation privileges")
             with self.assertRaisesRegex(CaseVerificationError, "symlinked case path"):
                 verify_case(case, protocol_path=PROTOCOL)
 
