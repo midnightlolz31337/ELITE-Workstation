@@ -175,10 +175,7 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
     current_path = _safe_file(root, ingestion["current_pointer"])
     current_size, current_digest = _fingerprint(current_path)
     del current_size
-    pointer_digest = ingestion["current_pointer_sha256"]
-    if not isinstance(pointer_digest, str) or len(pointer_digest) != 64 or any(ch not in "0123456789abcdef" for ch in pointer_digest):
-        raise CaseVerificationError("CURRENT.json SHA-256 value is invalid")
-    if current_digest != pointer_digest:
+    if current_digest != ingestion["current_pointer_sha256"]:
         raise CaseVerificationError("CURRENT.json SHA-256 mismatch")
 
     current = _load_json(current_path)
@@ -209,12 +206,8 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
         pointer_entry = _require_mapping(current_files[name], f"CURRENT {name}", {"path", "size", "sha256"})
         if pointer_entry["path"] != f"{current['generation_path']}/{name}":
             raise CaseVerificationError(f"CURRENT path mismatch for {name}")
-        pointer_size = _require_count(pointer_entry["size"], f"CURRENT {name} size")
-        pointer_digest = pointer_entry["sha256"]
-        if not isinstance(pointer_digest, str) or len(pointer_digest) != 64 or any(ch not in "0123456789abcdef" for ch in pointer_digest):
-            raise CaseVerificationError(f"CURRENT SHA-256 is invalid: {name}")
         size, digest = _fingerprint(path)
-        if size != pointer_size or digest != pointer_digest:
+        if size != pointer_entry["size"] or digest != pointer_entry["sha256"]:
             raise CaseVerificationError(f"CURRENT file integrity mismatch: {name}")
         expected_lines = accepted_count if name == "accepted.jsonl" else quarantine_count
         if _jsonl_count(path) != expected_lines:
@@ -246,18 +239,66 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
         except Exception as exc:
             raise CaseVerificationError(f"cannot load Protocol validator: {exc}") from exc
 
-    with observation_path.open("r", encoding="utf-8") as handle:
-        for line_number, line in enumerate(handle, 1):
+    digest_scopes = {
+        "jsonl": "ingestion.jsonl.line.bytes",
+        "csv": "ingestion.csv.normalized_row.utf8",
+    }
+    processed = 0
+    with accepted_path.open("r", encoding="utf-8") as accepted_handle, observation_path.open("r", encoding="utf-8") as observation_handle:
+        for line_number, pair in enumerate(zip(accepted_handle, observation_handle), 1):
+            accepted_line, observation_line = pair
             try:
-                observation = json.loads(line, object_pairs_hook=_unique_object)
+                envelope = json.loads(accepted_line, object_pairs_hook=_unique_object)
+                observation = json.loads(observation_line, object_pairs_hook=_unique_object)
             except json.JSONDecodeError as exc:
-                raise CaseVerificationError(f"invalid Observation JSON at line {line_number}") from exc
+                raise CaseVerificationError(f"invalid JSONL record at line {line_number}") from exc
+            if not isinstance(envelope, dict) or envelope.get("decision") != "accepted":
+                raise CaseVerificationError(f"non-accepted envelope in accepted stream at line {line_number}")
+            record = envelope.get("record")
+            if not isinstance(record, dict):
+                raise CaseVerificationError(f"ingestion record is invalid at line {line_number}")
+            raw_content = record.get("content")
+            if isinstance(raw_content, str):
+                expected_text = raw_content
+            elif isinstance(raw_content, dict) and isinstance(raw_content.get("text"), str):
+                expected_text = raw_content["text"]
+            else:
+                raise CaseVerificationError(f"ingestion content is invalid at line {line_number}")
+            expected_observed_at = record.get("observed_at")
+            if not isinstance(expected_observed_at, str) or not expected_observed_at:
+                expected_observed_at = timestamps["observed_at_default"]
+
             if not isinstance(observation, dict):
                 raise CaseVerificationError(f"Observation at line {line_number} is not an object")
             content = observation.get("content")
             integrity = observation.get("integrity")
+            obs_source = observation.get("source")
+            obs_ingestion = observation.get("ingestion")
             if not isinstance(content, dict) or not isinstance(content.get("text"), str) or not isinstance(integrity, dict):
                 raise CaseVerificationError(f"Observation content/integrity is invalid at line {line_number}")
+            if content["text"] != expected_text:
+                raise CaseVerificationError(f"Observation content does not match accepted envelope at line {line_number}")
+            if not isinstance(obs_source, dict) or obs_source.get("source_id") != source["source_id"] or obs_source.get("uri") != source["source_uri"]:
+                raise CaseVerificationError(f"Observation source does not match case source at line {line_number}")
+            if not isinstance(obs_ingestion, dict):
+                raise CaseVerificationError(f"Observation ingestion provenance is missing at line {line_number}")
+            if observation.get("observation_id") != envelope.get("record_id"):
+                raise CaseVerificationError(f"Observation ID does not match ingestion record at line {line_number}")
+            if obs_ingestion.get("import_id") != envelope.get("import_id") or obs_ingestion.get("record_id") != envelope.get("record_id"):
+                raise CaseVerificationError(f"Observation import/record IDs do not match envelope at line {line_number}")
+            if obs_ingestion.get("source_format") != source["format"] or envelope.get("source_format") != source["format"]:
+                raise CaseVerificationError(f"Observation source format does not match case at line {line_number}")
+            if obs_ingestion.get("source_record_line") != envelope.get("source_record"):
+                raise CaseVerificationError(f"Observation source line does not match envelope at line {line_number}")
+            record_digest = obs_ingestion.get("record_digest")
+            if not isinstance(record_digest, dict):
+                raise CaseVerificationError(f"Observation ingestion digest is missing at line {line_number}")
+            if record_digest.get("algorithm") != "sha-256" or record_digest.get("scope") != digest_scopes[source["format"]]:
+                raise CaseVerificationError(f"Observation ingestion digest scope is invalid at line {line_number}")
+            if record_digest.get("digest") != envelope.get("content_sha256") or record_digest.get("size_bytes") != envelope.get("raw_size_bytes"):
+                raise CaseVerificationError(f"Observation ingestion digest does not match envelope at line {line_number}")
+            if observation.get("collected_at") != timestamps["collected_at"] or observation.get("observed_at") != expected_observed_at:
+                raise CaseVerificationError(f"Observation timestamps do not match case/envelope at line {line_number}")
             if integrity.get("algorithm") != "sha-256" or integrity.get("scope") != "content.text.utf8":
                 raise CaseVerificationError(f"Observation digest scope is invalid at line {line_number}")
             actual = hashlib.sha256(content["text"].encode("utf-8")).hexdigest()
@@ -268,6 +309,9 @@ def verify_case(case_path: str | Path, *, protocol_path: str | Path | None = Non
                     validator("observation", observation)
                 except Exception as exc:
                     raise CaseVerificationError(f"Protocol validation failed at line {line_number}: {exc}") from exc
+            processed += 1
+    if processed != accepted_count:
+        raise CaseVerificationError("accepted envelope and Observation streams changed during verification")
 
     limitations = manifest["limitations"]
     if not isinstance(limitations, list) or any(not isinstance(item, str) for item in limitations):
