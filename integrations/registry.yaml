@@ -1,4 +1,4 @@
-schema_version: "0.2-draft"
+schema_version: "0.3-draft"
 integrations:
   - id: elite-ingestion-core
     repository: https://github.com/midnightlolz31337/ELITE-Ingestion-Core
@@ -9,9 +9,7 @@ integrations:
     pull_request: https://github.com/midnightlolz31337/ELITE-Ingestion-Core/pull/2
     merge_state: open-unmerged
     license_status: component-branch-license-pending-review
-    integration_evidence: https://github.com/midnightlolz31337/ELITE-Workstation/actions/runs/45059707107
-    license_status: component-branch-license-pending-review
-    integration_evidence: https://github.com/midnightlolz31337/ELITE-Workstation/actions/runs/45059707107
+    integration_evidence: https://github.com/midnightlolz31337/ELITE-Workstation/actions/runs/45059780144
   - id: elite-protocol
     repository: https://github.com/midnightlolz31337/ELITE-Protocol
     role: observation-schema-validation-and-ingestion-adapter

@@ -27,3 +27,19 @@ Malicious files and archives; prompt injection in retrieved content; poisoned me
 The operator authorization flag is only an assertion. There is no identity provider, source registry, legal authorization engine, network collection, signed manifest, authenticated chain of custody, or cryptographic case signature. The original input is not copied into the case. Parent-directory crash durability is platform/filesystem dependent. A case manifest and hashes do not establish source authenticity or truth.
 
 This is not a complete threat model or security certification.
+
+## Portable bundle controls (experimental)
+
+- Export starts by verifying the source case and rejects symlinks and non-regular files.
+- ZIP output uses stable member ordering, timestamps, permissions, and compression settings.
+- Import rejects path traversal, non-canonical and cross-platform-colliding paths, duplicate entries, symlinks/special files, encryption, unsupported compression, excessive compression ratios, oversized files, excessive entry counts, and aggregate-size overflow.
+- Extraction is staged; each member's actual byte count and SHA-256 are checked against the unsigned inventory; the complete case is verified before promotion.
+- The bundle inventory is not signed. A malicious sender can create a self-consistent bundle; authenticity and chain of custody remain out of scope.
+
+## Source snapshot and retention controls
+
+- Ingestion runs against a staged snapshot rather than a mutable external path. The source and snapshot fingerprints must match before ingestion, and the external source is checked again after processing.
+- Original source bytes are not retained by default. `--include-source-copy` explicitly opts into retaining the snapshot in the case.
+- When present, the retained source copy is checked against the recorded original byte count and SHA-256 during case verification.
+- Portable case bundles include retained source files. Bundles are not encrypted; operators must classify source data and control access, transfer, retention, and deletion.
+- A matching digest proves consistency with the recorded fingerprint, not source authenticity or truth.

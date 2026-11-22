@@ -13,7 +13,9 @@ A local-first integration layer for evidence-led OSINT workflows. No vendor-host
 5. Export deterministic Observation JSONL and create a local case manifest.
 6. Re-verify the case, file hashes, record counts, and Observation content digests with `elite-workstation verify`.
 
-This is a demonstrator, not a complete OSINT workstation, supported installer, or production release. It has no search UI, source registry, network collection, analyst collaboration, signed chain of custody, or full backup/restore workflow.
+This is a demonstrator, not a complete OSINT workstation, supported installer, or production release.
+
+**Portable case bundles:** the prototype now supports deterministic ZIP export and bounded, verified import. Bundles include the complete local case tree plus an unsigned transport inventory. Import rejects traversal, duplicate/colliding paths, symlinks and special files, encrypted members, unsupported compression, oversized entries, excessive compression ratios, and digest/size mismatches. This is transport integrity, not signed authenticity or chain of custody. It has no search UI, source registry, network collection, analyst collaboration, signed chain of custody, or full backup/restore workflow.
 
 ## Architecture rules
 
@@ -35,3 +37,6 @@ See [docs/quickstart.md](docs/quickstart.md). It requires local checkouts of the
 See [docs/RELEASE_GATES.md](docs/RELEASE_GATES.md). This repository currently has no selected open-source license; do not describe it as licensed open source or redistribute it under an assumed license. The Apache-2.0 branch-level statements in component repositories do not automatically apply here.
 
 **The evidence matters more than the announcement.** A passing integration test demonstrates only the pinned synthetic path—not full workstation readiness, source authenticity, or production security.
+## Source retention
+
+The Workstation snapshots the selected input before ingestion and processes that stable snapshot, not a mutable external path. By default, the temporary snapshot is removed after processing; the case records the source name, byte length, and SHA-256. To opt in to retaining the exact source bytes, add `--include-source-copy` to the `demo` command. The copy is stored at `source/original.<format>`, its path and fingerprint are recorded in the case manifest, it is verified by the case verifier, and it is included in portable case bundles. This may retain sensitive material: the flag is off by default, bundles are not encrypted, and operators must control access, transfer, retention, and deletion.
