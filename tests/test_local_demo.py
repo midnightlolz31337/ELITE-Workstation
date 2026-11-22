@@ -348,7 +348,7 @@ class LocalDemoIntegrationTests(unittest.TestCase):
             root = Path(directory)
             bundle = root / "deep.zip"
             with zipfile.ZipFile(bundle, "w") as archive:
-                archive.writestr("bundle.json", b"[" * 1200 + b"0" + b"]" * 1200)
+                archive.writestr("bundle.json", b"[" * 10000 + b"0" + b"]" * 10000)
             with self.assertRaisesRegex(CaseBundleError, "bundle.json is invalid"):
                 import_case_bundle(bundle, root / "restored.case")
 
