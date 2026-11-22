@@ -18,6 +18,7 @@ Malicious files and archives; prompt injection in retrieved content; poisoned me
 - Observation content digests are recomputed over exact UTF-8 text bytes.
 - Case output is staged and promoted only after ingestion, validation, export, and manifest creation succeed.
 - Existing case directories are never overwritten.
+- The case verifier checks safe paths, symlink boundaries, CURRENT linkage, file hashes/sizes/counts, one-to-one accepted-envelope-to-Observation provenance, content digests, and optional Protocol schema conformance.
 - Component code paths are explicit local inputs; component source code is trusted code and must be reviewed before execution/import.
 - Imported evidence is treated as data and is never executed.
 
