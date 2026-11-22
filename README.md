@@ -4,7 +4,7 @@ A local-first integration layer for evidence-led OSINT workflows. No vendor-host
 
 ## Current status
 
-<badge>PROTOTYPE</badge> The first executable local vertical slice now connects ELITE Ingestion Core to ELITE Protocol:
+**Status: PROTOTYPE** The first executable local vertical slice now connects ELITE Ingestion Core to ELITE Protocol:
 
 1. Import a local JSONL or CSV file through bounded ingestion.
 2. Preserve accepted and quarantined outputs in a committed generation.
