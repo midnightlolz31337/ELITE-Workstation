@@ -18,6 +18,9 @@ class WorkstationDemoError(RuntimeError):
     """Raised when a local demonstrator run cannot complete safely."""
 
 
+MAX_RETAINED_SOURCE_BYTES = 256 * 1024 * 1024
+
+
 def _file_fingerprint(path: Path) -> dict[str, Any]:
     digest = hashlib.sha256()
     size = 0
@@ -100,7 +103,11 @@ def run_local_demo(
     destination = destination.resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
 
+    if not isinstance(include_source_copy, bool):
+        raise WorkstationDemoError("include_source_copy must be a boolean")
     source_before = _file_fingerprint(source)
+    if include_source_copy and source_before["size_bytes"] > MAX_RETAINED_SOURCE_BYTES:
+        raise WorkstationDemoError("source exceeds the 256 MiB retained-copy limit")
     staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=destination.parent))
     try:
         # Ingest an immutable staged snapshot, never the mutable external path.
